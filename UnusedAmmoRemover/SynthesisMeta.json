@@ -1,0 +1,11 @@
+{
+  "Nickname": "UnusedAmmoRemover",
+  "Visibility": "Visible",
+  "OneLineDescription": "Removes all unused ammunition types from the game.",
+  "LongDescription": "Removes all unused ammunition types from both leveled lists and from the crafting recipe list to declutter your game when using ammo mods.",
+  "PreferredAutoVersioning": "Default",
+  "RequiredMods": [],
+  "TargetedReleases": [
+    "Fallout4"
+  ]
+}
