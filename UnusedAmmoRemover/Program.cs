@@ -3,6 +3,7 @@ using Mutagen.Bethesda.Synthesis;
 using Mutagen.Bethesda.Fallout4;
 using Mutagen.Bethesda.Plugins;
 using Noggog;
+using Mutagen.Bethesda.Plugins.Cache;
 
 namespace UnusedAmmoRemover
 {
@@ -17,9 +18,12 @@ namespace UnusedAmmoRemover
         }
 
         static HashSet<IFormLinkGetter<IAmmunitionGetter>> UsedAmmunition { get; } = new();
+        static ILinkCache LinkCache { get; set; } = null!;
 
         public static void RunPatch(IPatcherState<IFallout4Mod, IFallout4ModGetter> state)
         {
+            LinkCache = state.LoadOrder.PriorityOrder.ToImmutableLinkCache();
+
             Console.WriteLine("Searching for used ammo in weapon records.");
             foreach (var weaponGetter in state.LoadOrder.PriorityOrder.WinningOverrides<IWeaponGetter>())
                 UsedAmmunition.Add(weaponGetter.Ammo);
@@ -32,7 +36,7 @@ namespace UnusedAmmoRemover
 
                 foreach (var entry in weaponModGetter.Properties)
                 {
-                    if (entry is IObjectModFormLinkIntPropertyGetter<Weapon.Property> propGetter && propGetter.Property == Weapon.Property.Ammo && propGetter.Record.TryResolve(state.LinkCache, out var recordGetter))
+                    if (entry is IObjectModFormLinkIntPropertyGetter<Weapon.Property> propGetter && propGetter.Property == Weapon.Property.Ammo && propGetter.Record.TryResolve(LinkCache, out var recordGetter))
                     {
                         if (recordGetter is not IAmmunitionGetter ammoGetter)
                             continue;
@@ -50,7 +54,7 @@ namespace UnusedAmmoRemover
                 var lvliSetter = lvliGetter.DeepCopy();
                 for (int i = (lvliGetter.Entries?.Count ?? 0) - 1; i >= 0; i--)
                 {
-                    if (lvliGetter.Entries![i].Data is null || !lvliGetter.Entries[i].Data!.Reference.TryResolve(state.LinkCache, out var itemGetter))
+                    if (lvliGetter.Entries![i].Data is null || !lvliGetter.Entries[i].Data!.Reference.TryResolve(LinkCache, out var itemGetter))
                         continue;
 
                     if (itemGetter is IAmmunitionGetter ammoGetter && !UsedAmmunition.Contains(ammoGetter.ToLinkGetter()))
@@ -67,7 +71,7 @@ namespace UnusedAmmoRemover
             Console.WriteLine("Removing unused ammo crafting recipes.");
             foreach (var constrObjGetter in state.LoadOrder.PriorityOrder.WinningOverrides<IConstructibleObjectGetter>())
             {
-                if (!constrObjGetter.CreatedObject.TryResolve(state.LinkCache, out var constrObj))
+                if (!constrObjGetter.CreatedObject.TryResolve(LinkCache, out var constrObj))
                     continue;
 
                 if (constrObj is not IAmmunitionGetter ammoGetter)
