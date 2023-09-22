@@ -16,13 +16,15 @@ namespace UnusedAmmoRemover
                 .Run(args);
         }
 
-        static Dictionary<IFormLinkGetter<IAmmunitionGetter>, bool> AmmoDict { get; } = new();
+        static HashSet<IFormLinkGetter<IAmmunitionGetter>> UsedAmmunition { get; } = new();
 
         public static void RunPatch(IPatcherState<IFallout4Mod, IFallout4ModGetter> state)
         {
+            Console.WriteLine("Searching for used ammo in weapon records.");
             foreach (var weaponGetter in state.LoadOrder.PriorityOrder.WinningOverrides<IWeaponGetter>())
-                AmmoDict[weaponGetter.Ammo] = true;
+                UsedAmmunition.Add(weaponGetter.Ammo);
 
+            Console.WriteLine("Searching for used ammo in weapon mod records.");
             foreach (var objModGetter in state.LoadOrder.PriorityOrder.WinningOverrides<IAObjectModificationGetter>())
             {
                 if (objModGetter is not IWeaponModificationGetter weaponModGetter)
@@ -35,12 +37,13 @@ namespace UnusedAmmoRemover
                         if (recordGetter is not IAmmunitionGetter ammoGetter)
                             continue;
 
-                        AmmoDict[ammoGetter.ToLinkGetter()] = true;
+                        UsedAmmunition.Add(ammoGetter.ToLinkGetter());
                     }
                 }
             }
 
             // Remove ammo.
+            Console.WriteLine("Removing unused ammo from leveled lists.");
             foreach (var lvliGetter in state.LoadOrder.PriorityOrder.WinningOverrides<ILeveledItemGetter>())
             {
                 bool wasChanged = false;
@@ -50,7 +53,7 @@ namespace UnusedAmmoRemover
                     if (lvliGetter.Entries![i].Data is null || !lvliGetter.Entries[i].Data!.Reference.TryResolve(state.LinkCache, out var itemGetter))
                         continue;
 
-                    if (itemGetter is IAmmunitionGetter ammoGetter && !AmmoDict.TryGetValue(ammoGetter.ToLinkGetter(), out _))
+                    if (itemGetter is IAmmunitionGetter ammoGetter && !UsedAmmunition.Contains(ammoGetter.ToLinkGetter()))
                     {
                         wasChanged |= true;
                         lvliSetter.Entries!.RemoveAt(i);
@@ -61,6 +64,7 @@ namespace UnusedAmmoRemover
                     state.PatchMod.LeveledItems.Set(lvliSetter);
             }
 
+            Console.WriteLine("Removing unused ammo crafting recipes.");
             foreach (var constrObjGetter in state.LoadOrder.PriorityOrder.WinningOverrides<IConstructibleObjectGetter>())
             {
                 if (!constrObjGetter.CreatedObject.TryResolve(state.LinkCache, out var constrObj))
@@ -69,7 +73,7 @@ namespace UnusedAmmoRemover
                 if (constrObj is not IAmmunitionGetter ammoGetter)
                     continue;
 
-                if (!AmmoDict.TryGetValue(ammoGetter.ToLinkGetter(), out _))
+                if (!UsedAmmunition.Contains(ammoGetter.ToLinkGetter()))
                 {
                     var constrObjSetter = state.PatchMod.ConstructibleObjects.GetOrAddAsOverride(constrObjGetter);
                     constrObjSetter.CreatedObject.SetToNull();
